@@ -27,7 +27,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="text"
-            android:text="/sdcard/cleartext"
+            android:text="/sdcard/FileEncryptionTest2MB.jpg"
             android:ems="10"
             android:id="@+id/filepath"
             android:layout_weight="2" />
@@ -41,15 +41,15 @@
         <TextView
             android:layout_height="match_parent"
             android:id="@+id/cipherLabel"
-            android:text="Cipher"
+            android:text="Iterations"
             android:layout_width="match_parent"
             android:layout_weight="2"/>
 
         <EditText
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="text"
-            android:text="AES"
+            android:inputType="number"
+            android:text="1"
             android:ems="10"
             android:id="@+id/cipher"
             android:layout_weight="2" />
@@ -83,11 +83,19 @@
         android:checked="true"
         android:id="@+id/writeLogsToDisplay" />
 
+    <ScrollView
+        android:id="@+id/SCROLLER_ID"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scrollbars="vertical"
+        android:fillViewport="true">
+
     <TextView
         android:id="@+id/logArea"
         android:text="Log Area\n"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scrollbarStyle="outsideOverlay"/>
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"/>
+
+    </ScrollView>
 
 </LinearLayout>

@@ -15,16 +15,39 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import droidninja.filepicker.FilePickerBuilder;
+
+class CryptoInput {
+    public int Iterations;
+    public String FilePath;
+}
+
+class CryptoOutput {
+    public String NewFilePath;
+    public String ProviderUsed;
+    public Float TimeSpent;
+    public String Error = null;
+}
 
 public class MainActivity extends AppCompatActivity {
 
@@ -32,6 +55,10 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox _logToDisplay;
     private EditText _filePath;
     private EditText _cipher;
+
+    private static String algo = "PBEWithSHA256And256BitAES-CBC-BC";
+
+    private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss");
 
     private boolean shouldLogToDisplay() {
         return _logToDisplay.isChecked();
@@ -47,6 +74,11 @@ public class MainActivity extends AppCompatActivity {
         _filePath = (EditText)this.findViewById(R.id.filepath);
         _cipher = (EditText)this.findViewById(R.id.cipher);
 
+        try {
+            log(" Max key length supported on device: " + Cipher.getMaxAllowedKeyLength(algo));
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
     }
 
     public void chooseFile(View view){
@@ -115,14 +147,31 @@ public class MainActivity extends AppCompatActivity {
                 FileOutputStream fos = new FileOutputStream(input[0] + ".decrypted");
 
 
+                byte[] salt = new byte[8];
+                SecureRandom random = new SecureRandom();
+                random.nextBytes(salt);
+
+                // Create the key
+                KeySpec keySpec = new PBEKeySpec("TestPassword".toCharArray(), salt, 1);
+                SecretKey key = SecretKeyFactory.getInstance(
+                        "PBEWithSHA256And256BitAES-CBC-BC").generateSecret(keySpec);
+
+                Cipher ecipher = Cipher.getInstance(key.getAlgorithm());
+
+                // Prepare the parameter to the ciphers
+                AlgorithmParameterSpec paramSpec = new PBEParameterSpec(salt, 1);
+
+                // Create the ciphers
+                ecipher.init(Cipher.DECRYPT_MODE, key, paramSpec);
+                /*
                 // Length is 16 byte
                 // Careful when taking user input!!! http://stackoverflow.com/a/3452620/1188357
                 SecretKeySpec sks = new SecretKeySpec("MyDifficultPassw".getBytes(), input[1]);
                 // Create cipher
                 Cipher cipher = Cipher.getInstance(input[1]);
                 cipher.init(Cipher.DECRYPT_MODE, sks);
-                // Wrap the output stream
-                CipherOutputStream cos = new CipherOutputStream(fos, cipher);
+                // Wrap the output stream*/
+                CipherOutputStream cos = new CipherOutputStream(fos, ecipher);
                 // Write bytes
                 int b;
                 byte[] d = new byte[8];
@@ -134,8 +183,9 @@ public class MainActivity extends AppCompatActivity {
                 cos.close();
                 fis.close();
             }
-            catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException ex) {
+            catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | InvalidKeySpecException ex) {
                 Log.e("Decrypt", "Exception", ex);
+
                 log("Decrypt - Exception - " + ex.getMessage());
             }
 
@@ -157,17 +207,52 @@ public class MainActivity extends AppCompatActivity {
         new DecryptTask().execute(_filePath.getText().toString(), _cipher.getText().toString());
     }
 
-    private class EncryptTask extends AsyncTask<String, Integer, Float> {
-        protected Float doInBackground(String... input) {
+    private class EncryptTask extends AsyncTask<CryptoInput, Integer, CryptoOutput> {
+        protected CryptoOutput doInBackground(CryptoInput... input) {
+
+            CryptoOutput output = new CryptoOutput();
             Date start = new Date();
 
             try {
 
                 // Here you read the cleartext.
-                FileInputStream fis = new FileInputStream(input[0]);
+                FileInputStream fis = new FileInputStream(input[0].FilePath);
                 // This stream write the encrypted text. This stream will be wrapped by another stream.
-                FileOutputStream fos = new FileOutputStream(input[0] + ".encrypted");
+                output.NewFilePath = input[0].FilePath + ".encrypted";
+                FileOutputStream fos = new FileOutputStream(output.NewFilePath);
 
+                byte[] salt = new byte[8];
+                SecureRandom random = new SecureRandom();
+                random.nextBytes(salt);
+
+                // Create the key
+                KeySpec keySpec = new PBEKeySpec("TestPassword".toCharArray(), salt, input[0].Iterations);
+                SecretKey key = SecretKeyFactory.getInstance(
+                        algo).generateSecret(keySpec);
+
+                Cipher ecipher = Cipher.getInstance(key.getAlgorithm());
+
+                // Prepare the parameter to the ciphers
+                AlgorithmParameterSpec paramSpec = new PBEParameterSpec(salt, input[0].Iterations);
+
+                // Create the ciphers
+                ecipher.init(Cipher.ENCRYPT_MODE, key, paramSpec);
+
+
+                output.ProviderUsed = ecipher.getProvider().getInfo();
+
+                start = new Date();
+                CipherOutputStream cos = new CipherOutputStream(fos, ecipher);
+                //byte[] enc = ecipher.doFinal(utf8);
+
+                /*
+
+                SecretKeySpec secret = new SecretKeySpec("MyDifficultPassw".getBytes(), input[1]);
+                Cipher ecipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                byte[] iv = new byte[IV_LENGTH];
+                SecureRandom random = new SecureRandom();
+                random.nextBytes(iv);
+                ecipher.init(Cipher.ENCRYPT_MODE, secret, new IvParameterSpec(iv));
 
                 // Length is 16 byte
                 // Careful when taking user input!!! http://stackoverflow.com/a/3452620/1188357
@@ -176,7 +261,7 @@ public class MainActivity extends AppCompatActivity {
                 Cipher cipher = Cipher.getInstance(input[1]);
                 cipher.init(Cipher.ENCRYPT_MODE, sks);
                 // Wrap the output stream
-                CipherOutputStream cos = new CipherOutputStream(fos, cipher);
+                CipherOutputStream cos = new CipherOutputStream(fos, cipher);*/
                 // Write bytes
                 int b;
                 byte[] d = new byte[8];
@@ -188,28 +273,37 @@ public class MainActivity extends AppCompatActivity {
                 cos.close();
                 fis.close();
             }
-            catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException ex) {
+            catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | InvalidKeySpecException ex) {
                 Log.e("Encrypt", "Exception", ex);
-                log("Encrypt - Exception - " + ex.getMessage());
+                output.Error = "Encrypt - Exception - " + ex.getMessage();
             }
 
             Date end = new Date();
+            output.TimeSpent = (float)(end.getTime() - start.getTime())/1000;
 
-            return (float)(end.getTime() - start.getTime())/1000;
+            return output;
         }
 
         protected void onProgressUpdate(Integer... progress) {
         }
 
-        protected void onPostExecute(Float result) {
-            log(String.format(new Date().toString() + " - Encryption done, took %.4f seconds", result));
+        protected void onPostExecute(CryptoOutput result) {
+            log("Created File: " + result.NewFilePath);
+            log("Used Provider: " + result.ProviderUsed);
+            if(result.Error != null)
+                log("Error: " + result.Error);
+
+            log(String.format(formatter.format(new Date()) + " - Encryption done, took %.4f seconds", result.TimeSpent));
         }
     }
 
     public void encrypt(View view){
 
-        log(new Date().toString() + " - Start Encryption");
-        new EncryptTask().execute(_filePath.getText().toString(), _cipher.getText().toString());
+        log(formatter.format(new Date()) + " - Start Encryption");
+        CryptoInput input = new CryptoInput();
+        input.FilePath = _filePath.getText().toString();
+        input.Iterations = Integer.parseInt( _cipher.getText().toString());
+        new EncryptTask().execute(input);
 /*
         Date start = new Date();
 
