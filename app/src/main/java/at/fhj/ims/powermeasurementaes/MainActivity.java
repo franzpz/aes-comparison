@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -56,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText _filePath;
     private EditText _cipher;
 
-    private static String algo = "PBEWithSHA256And256BitAES-CBC-BC";
+    private static String algo = "AES";
 
     private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss");
 
@@ -227,9 +228,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // Create the key
                 KeySpec keySpec = new PBEKeySpec("TestPassword".toCharArray(), salt, input[0].Iterations);
-                SecretKey key = SecretKeyFactory.getInstance(
-                        algo).generateSecret(keySpec);
-
+                SecretKey key = SecretKeyFactory.getInstance("PBEWithSHA256And256BitAES-CBC-BC").generateSecret(keySpec);
                 Cipher ecipher = Cipher.getInstance(key.getAlgorithm());
 
                 // Prepare the parameter to the ciphers
@@ -239,29 +238,35 @@ public class MainActivity extends AppCompatActivity {
                 ecipher.init(Cipher.ENCRYPT_MODE, key, paramSpec);
 
 
-                output.ProviderUsed = ecipher.getProvider().getInfo();
 
                 start = new Date();
-                CipherOutputStream cos = new CipherOutputStream(fos, ecipher);
+               /* CipherOutputStream cos = new CipherOutputStream(fos, ecipher);*/
                 //byte[] enc = ecipher.doFinal(utf8);
 
-                /*
 
-                SecretKeySpec secret = new SecretKeySpec("MyDifficultPassw".getBytes(), input[1]);
-                Cipher ecipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                byte[] iv = new byte[IV_LENGTH];
-                SecureRandom random = new SecureRandom();
-                random.nextBytes(iv);
-                ecipher.init(Cipher.ENCRYPT_MODE, secret, new IvParameterSpec(iv));
+                try {
+                    Field field = Class.forName("javax.crypto.JceSecurity").
+                            getDeclaredField("isRestricted");
+                    boolean value = field.getBoolean(null);
+                    field.setAccessible(true);
+                    field.set(null, java.lang.Boolean.FALSE);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
 
                 // Length is 16 byte
                 // Careful when taking user input!!! http://stackoverflow.com/a/3452620/1188357
-                SecretKeySpec sks = new SecretKeySpec("MyDifficultPassw".getBytes(), input[1]);
+                SecretKeySpec sks = new SecretKeySpec("MyDifficultPassw".getBytes(), "AES");
                 // Create cipher
-                Cipher cipher = Cipher.getInstance(input[1]);
+                Cipher cipher = Cipher.getInstance("AES");
                 cipher.init(Cipher.ENCRYPT_MODE, sks);
+                // Read provider details
+                Log.i("Provider", cipher.getProvider().getInfo());
+                // Log-> BouncyCastle Security Provider v1.50
+
+                output.ProviderUsed = cipher.getProvider().getInfo();
                 // Wrap the output stream
-                CipherOutputStream cos = new CipherOutputStream(fos, cipher);*/
+                CipherOutputStream cos = new CipherOutputStream(fos, cipher);
                 // Write bytes
                 int b;
                 byte[] d = new byte[8];
@@ -273,9 +278,13 @@ public class MainActivity extends AppCompatActivity {
                 cos.close();
                 fis.close();
             }
-            catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException | InvalidKeySpecException ex) {
+            catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException ex) {
                 Log.e("Encrypt", "Exception", ex);
                 output.Error = "Encrypt - Exception - " + ex.getMessage();
+            } catch (InvalidAlgorithmParameterException e) {
+                e.printStackTrace();
+            } catch (InvalidKeySpecException e) {
+                e.printStackTrace();
             }
 
             Date end = new Date();
